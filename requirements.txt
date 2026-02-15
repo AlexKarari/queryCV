@@ -1,0 +1,8 @@
+anthropic==0.53.0
+gradio==5.33.1
+openai==1.85.0
+pandas==2.3.0
+pydantic==2.11.5
+python-dotenv==1.1.0
+pypdf==5.6.0
+gradio==5.33.1
