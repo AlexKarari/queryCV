@@ -23,4 +23,3 @@ data/*.txt
 
 # Environment
 .env
-.venv
