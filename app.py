@@ -344,15 +344,15 @@ def build_ui(agent: ChatAgent, summary_preview: str) -> gr.Blocks:
         btn_skills.click(respond_skills, inputs=[chatbot], outputs=[msg, chatbot])
         btn_projects.click(respond_projects, inputs=[chatbot], outputs=[msg, chatbot])
 
-    # About Me — string concatenation avoids f-string curly brace risk
-    gr.Markdown(
-        "---\n## 👤 About Me\n\n"
-        + summary_preview
-        + "\n\n---"
-    )
+        # About Me — string concatenation avoids f-string curly brace risk
+        gr.Markdown(
+            "---\n## 👤 About Me\n\n"
+            + summary_preview
+            + "\n\n---"
+        )
 
-    # Footer
-    gr.Markdown("⚡ Built with LLMs, tool-calling, and Gradio")
+        # Footer
+        gr.Markdown("⚡ Built with LLMs, tool-calling, and Gradio")
 
     return demo
 
@@ -383,8 +383,8 @@ def main():
 
     demo = build_ui(agent, summary_preview)
 
-    # demo.launch(server_name="127.0.0.1") # Uncomment to run locally
-    demo.launch(server_name="0.0.0.0")
+    demo.launch(server_name="127.0.0.1") # Uncomment to run locally
+    # demo.launch(server_name="0.0.0.0") 
 
 
 if __name__ == "__main__":
