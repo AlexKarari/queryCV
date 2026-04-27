@@ -383,7 +383,8 @@ def main():
 
     demo = build_ui(agent, summary_preview)
 
-    demo.launch(server_name="127.0.0.1")
+    # demo.launch(server_name="127.0.0.1")
+    demo.launch(server_name="0.0.0.0")
 
 
 if __name__ == "__main__":
