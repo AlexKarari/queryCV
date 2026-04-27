@@ -24,10 +24,6 @@ SUMMARY_PATH = os.path.join(DATA_DIR, "summary.txt")
 
 AGENT_NAME = "Alexander K. Kariuki"
 
-# HuggingFace Spaces sets this env var automatically — used to toggle launch config
-IS_HUGGINGFACE = os.getenv("SPACE_ID") is not None
-
-
 # ---------------------------------------------------------------------------
 # Notifications
 # ---------------------------------------------------------------------------
@@ -172,7 +168,7 @@ class DataLoader:
 # Chat agent
 # ---------------------------------------------------------------------------
 class ChatAgent:
-    """Handles OpenAI chat completions with tool-calling support."""
+    """Handles OpenAI chat completions with tool-calling and streaming support."""
 
     def __init__(self, name: str, linkedin: str, summary: str):
         self.client = OpenAI()
@@ -218,13 +214,20 @@ class ChatAgent:
             })
         return results
 
-    def chat(self, user_message: str, history: list[dict]) -> str:
+    def stream_chat(self, user_message: str, history: list[dict]):
         """
+        Runs the tool-calling loop synchronously, then streams the final
+        text response as a generator of string chunks.
+
+        Tool call iterations are non-streaming — we need the full response
+        to inspect finish_reason and extract tool call arguments.
+        Only the final user-visible reply is streamed.
+
         Args:
             user_message: The latest user input.
             history: List of {"role": ..., "content": ...} dicts (OpenAI format).
-        Returns:
-            Assistant reply string.
+        Yields:
+            str chunks of the assistant reply as they arrive.
         """
         messages = (
             [{"role": "system", "content": self._system_prompt}]
@@ -245,10 +248,21 @@ class ChatAgent:
                 messages.append(choice.message)
                 messages.extend(tool_results)
             else:
-                return choice.message.content or "I'm not sure how to respond to that."
+                # Ready for the final reply — re-request with stream=True
+                stream = self.client.chat.completions.create(
+                    model=MODEL,
+                    messages=messages,
+                    tools=TOOLS,
+                    stream=True,
+                )
+                for chunk in stream:
+                    delta = chunk.choices[0].delta.content
+                    if delta:
+                        yield delta
+                return
 
         print(f"[WARN] Tool loop hit MAX_TOOL_LOOPS ({MAX_TOOL_LOOPS}) without a final response.")
-        return "I ran into an issue completing that request. Please try again."
+        yield "I ran into an issue completing that request. Please try again."
 
 
 # ---------------------------------------------------------------------------
@@ -256,19 +270,34 @@ class ChatAgent:
 # ---------------------------------------------------------------------------
 def build_ui(agent: ChatAgent, summary_preview: str) -> gr.Blocks:
 
-    def respond(user_message: str, history: list[dict]) -> tuple[str, list[dict]]:
+    def respond(user_message: str, history: list[dict]):
         """
-        Gradio 5.x chat handler.
-        Returns a NEW history list — never mutates in place (Gradio 5 state requirement).
+        Gradio 5.x streaming chat handler — a generator that yields
+        (cleared_input, partial_history) on each token chunk.
+
+        The assistant message is appended immediately as an empty string,
+        then updated in place on each yield so Gradio re-renders incrementally.
         """
         if not user_message.strip():
-            return "", history
-        reply = agent.chat(user_message, history)
-        updated_history = history + [
+            yield "", history
+            return
+
+        # Seed the assistant turn with an empty string so the bubble appears immediately
+        partial_history = history + [
             {"role": "user", "content": user_message},
-            {"role": "assistant", "content": reply},
+            {"role": "assistant", "content": ""},
         ]
-        return "", updated_history
+        yield "", partial_history
+
+        # Stream chunks — accumulate into the last message in partial_history
+        full_reply = ""
+        for chunk in agent.stream_chat(user_message, history):
+            full_reply += chunk
+            streaming_history = history + [
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": full_reply},
+            ]
+            yield "", streaming_history
 
     with gr.Blocks(theme=gr.themes.Soft(), title="AI CV Agent") as demo:
 
@@ -302,32 +331,28 @@ def build_ui(agent: ChatAgent, summary_preview: str) -> gr.Blocks:
         send.click(respond, inputs=[msg, chatbot], outputs=[msg, chatbot])
         msg.submit(respond, inputs=[msg, chatbot], outputs=[msg, chatbot])
 
-        # Quick-action buttons — lambdas inject the fixed prompt, auto-submit immediately
-        btn_experience.click(
-            lambda h: respond("What experience do you have?", h),
-            inputs=[chatbot],
-            outputs=[msg, chatbot],
-        )
-        btn_skills.click(
-            lambda h: respond("What are your key skills?", h),
-            inputs=[chatbot],
-            outputs=[msg, chatbot],
-        )
-        btn_projects.click(
-            lambda h: respond("What projects have you worked on?", h),
-            inputs=[chatbot],
-            outputs=[msg, chatbot],
-        )
+        def respond_experience(history):
+            yield from respond("What experience do you have?", history)
 
-        # About Me — string concatenation avoids f-string curly brace risk
-        gr.Markdown(
-            "---\n## 👤 About Me\n\n"
-            + summary_preview
-            + "\n\n---"
-        )
+        def respond_skills(history):
+            yield from respond("What are your key skills?", history)
 
-        # Footer
-        gr.Markdown("⚡ Built with LLMs, tool-calling, and Gradio")
+        def respond_projects(history):
+            yield from respond("What projects have you worked on?", history)
+
+        btn_experience.click(respond_experience, inputs=[chatbot], outputs=[msg, chatbot])
+        btn_skills.click(respond_skills, inputs=[chatbot], outputs=[msg, chatbot])
+        btn_projects.click(respond_projects, inputs=[chatbot], outputs=[msg, chatbot])
+
+    # About Me — string concatenation avoids f-string curly brace risk
+    gr.Markdown(
+        "---\n## 👤 About Me\n\n"
+        + summary_preview
+        + "\n\n---"
+    )
+
+    # Footer
+    gr.Markdown("⚡ Built with LLMs, tool-calling, and Gradio")
 
     return demo
 
@@ -358,9 +383,7 @@ def main():
 
     demo = build_ui(agent, summary_preview)
 
-    # server_name="0.0.0.0" is required for HuggingFace Spaces.
-    # Locally, access via http://localhost:7860 (not http://0.0.0.0:7860)
-    demo.launch(server_name="0.0.0.0" if IS_HUGGINGFACE else "127.0.0.1")
+    demo.launch(server_name="127.0.0.1")
 
 
 if __name__ == "__main__":
