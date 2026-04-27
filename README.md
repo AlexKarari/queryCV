@@ -1,20 +1,8 @@
----
-title: AI CV Agent
-emoji: 🤖
-colorFrom: blue
-colorTo: indigo
-sdk: gradio
-sdk_version: "5.33.1"
-app_file: app.py
-pinned: false
----
-
 # 🤖 AI CV Agent
 
 > A conversational AI that brings a static resume to life — ask it anything about my experience, skills, and projects.
 
-**Live Demo:** _link coming soon_
-
+**Live Demo:** https://huggingface.co/spaces/xanderKariuki/ai-cv-agent
 ---
 
 ## What It Does
