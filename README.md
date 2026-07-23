@@ -3,6 +3,8 @@
 > A conversational AI that brings a static resume to life — ask it anything about my experience, skills, and projects.
 
 **Live Demo:** https://huggingface.co/spaces/xanderKariuki/ai-cv-agent
+
+Note: This application is hosted on the Hugging Face Spaces CPU Basic (Free) tier. If the app appears unavailable or displays a scheduling/runtime error, it is usually due to temporary resource allocation on the shared free infrastructure rather than an issue with the application itself. Please try again in a few minutes or refresh the page.
 ---
 
 ## What It Does
